@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import NavBar from "../components/NavBar";
-import ChatWindow from "../components/ChatWindow";
+const ChatWindow = React.lazy(() => import("../components/ChatWindow"));
 import { apiService } from "../services/api";
 
 const POLL_INTERVAL = 600; // 0.6 seconds
@@ -210,12 +210,20 @@ export default function App() {
                     flex flex-col overflow-hidden">
                     <div ref={containerRef} 
                         className="flex-grow overflow-y-auto pb-20 pt-10 scroll-smooth">
-                        <ChatWindow
-                            conversation={conversation}
-                            loading={loading}
-                            onConfirm={handleConfirm}
-                            onContentChange={handleContentChange}
-                        />
+                        <Suspense
+                            fallback={
+                                <div className="pt-2 flex justify-center">
+                                    <div className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                                </div>
+                            }
+                        >
+                            <ChatWindow
+                                conversation={conversation}
+                                loading={loading}
+                                onConfirm={handleConfirm}
+                                onContentChange={handleContentChange}
+                            />
+                        </Suspense>
                         {done && (
                             <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4 
                                 animate-fade-in">
