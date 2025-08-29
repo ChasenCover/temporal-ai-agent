@@ -1,6 +1,6 @@
-import React, { memo, useEffect } from "react";
+import React, { memo, useEffect, Suspense } from "react";
 import MessageBubble from "./MessageBubble";
-import ConfirmInline from "./ConfirmInline";
+const ConfirmInline = React.lazy(() => import("./ConfirmInline"));
 
 const LLMResponse = memo(({ data, onConfirm, isLastMessage, onHeightChange }) => {
     const [isConfirmed, setIsConfirmed] = React.useState(false);
@@ -38,11 +38,13 @@ const LLMResponse = memo(({ data, onConfirm, isLastMessage, onHeightChange }) =>
                 message={{ response: displayText || defaultText }} 
             />
             {requiresConfirm && (
-                <ConfirmInline
-                    data={data}
-                    confirmed={isConfirmed}
-                    onConfirm={handleConfirm}
-                />
+                <Suspense fallback={<div className="text-sm text-gray-500">Loading…</div>}>
+                    <ConfirmInline
+                        data={data}
+                        confirmed={isConfirmed}
+                        onConfirm={handleConfirm}
+                    />
+                </Suspense>
             )}
             {!requiresConfirm && data.tool && data.next === "confirm" && (
                 <div className="text-sm text-center text-green-600 dark:text-green-400">
