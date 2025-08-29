@@ -3,7 +3,7 @@ import NavBar from "../components/NavBar";
 import ChatWindow from "../components/ChatWindow";
 import { apiService } from "../services/api";
 
-const POLL_INTERVAL = 600; // 0.6 seconds
+const POLL_INTERVAL = 1000; // 1 second - reduced polling frequency for better performance
 const INITIAL_ERROR_STATE = { visible: false, message: '' };
 const DEBOUNCE_DELAY = 300; // 300ms debounce for user input
 
@@ -109,12 +109,24 @@ export default function App() {
         }
     }, [handleError, clearErrorOnSuccess]);
     
-    // Setup polling with cleanup
+    // Setup polling with cleanup - only poll when needed
     useEffect(() => {
-        pollingRef.current = setInterval(fetchConversationHistory, POLL_INTERVAL);
+        // Only poll if we're waiting for a response
+        if (!done || loading) {
+            pollingRef.current = setInterval(fetchConversationHistory, POLL_INTERVAL);
+        } else {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+        }
         
-        return () => clearInterval(pollingRef.current);
-    }, [fetchConversationHistory]);
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+            }
+        };
+    }, [fetchConversationHistory, done, loading]);
     
 
     const scrollToBottom = useCallback(() => {
