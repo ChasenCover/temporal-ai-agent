@@ -1,9 +1,13 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./pages/App";
+const App = React.lazy(() => import("./pages/App"));
 import "./index.css"; // Tailwind imports
 
 const container = document.getElementById("root");
 const root = createRoot(container);
 
-root.render(<App />);
+root.render(
+  <Suspense fallback={<div />}>
+    <App />
+  </Suspense>
+);
