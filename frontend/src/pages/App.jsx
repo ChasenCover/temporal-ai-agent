@@ -80,9 +80,16 @@ export default function App() {
             const data = await apiService.getConversationHistory();
             const newConversation = data.messages || [];
             
-            setConversation(prevConversation => 
-                JSON.stringify(prevConversation) !== JSON.stringify(newConversation) ? newConversation : prevConversation
-            );
+            setConversation(prevConversation => {
+                if (prevConversation.length !== newConversation.length) return newConversation;
+                const prevLast = prevConversation[prevConversation.length - 1];
+                const nextLast = newConversation[newConversation.length - 1];
+                if (!prevLast && !nextLast) return prevConversation;
+                if (!prevLast || !nextLast) return newConversation;
+                const prevSig = `${prevLast.actor}-${prevLast.response?.response ?? prevLast.response}`;
+                const nextSig = `${nextLast.actor}-${nextLast.response?.response ?? nextLast.response}`;
+                return prevSig !== nextSig ? newConversation : prevConversation;
+            });
     
             if (newConversation.length > 0) {
                 const lastMsg = newConversation[newConversation.length - 1];
@@ -91,11 +98,11 @@ export default function App() {
                 setLoading(!isAgentMessage);
                 setDone(lastMsg.response.next === "done");
     
-                setLastMessage(prevLastMessage =>
-                    !prevLastMessage || lastMsg.response.response !== prevLastMessage.response.response
-                        ? lastMsg
-                        : prevLastMessage
-                );
+                setLastMessage(prevLastMessage => {
+                    const prevText = prevLastMessage?.response?.response ?? prevLastMessage?.response;
+                    const nextText = lastMsg?.response?.response ?? lastMsg?.response;
+                    return !prevLastMessage || prevText !== nextText ? lastMsg : prevLastMessage;
+                });
             } else {
                 setLoading(false);
                 setDone(true);
@@ -111,9 +118,18 @@ export default function App() {
     
     // Setup polling with cleanup
     useEffect(() => {
-        pollingRef.current = setInterval(fetchConversationHistory, POLL_INTERVAL);
-        
-        return () => clearInterval(pollingRef.current);
+        let isActive = true;
+        const tick = async () => {
+            if (!isActive) return;
+            await fetchConversationHistory();
+            if (!isActive) return;
+            pollingRef.current = setTimeout(tick, POLL_INTERVAL);
+        };
+        pollingRef.current = setTimeout(tick, POLL_INTERVAL);
+        return () => {
+            isActive = false;
+            if (pollingRef.current) clearTimeout(pollingRef.current);
+        };
     }, [fetchConversationHistory]);
     
 
