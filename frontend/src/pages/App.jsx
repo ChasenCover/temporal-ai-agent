@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import NavBar from "../components/NavBar";
 import ChatWindow from "../components/ChatWindow";
 import { apiService } from "../services/api";
 
-const POLL_INTERVAL = 600; // 0.6 seconds
+const POLL_INTERVAL = 1000; // Increased from 600ms to 1000ms for better performance
 const INITIAL_ERROR_STATE = { visible: false, message: '' };
 const DEBOUNCE_DELAY = 300; // 300ms debounce for user input
 
@@ -23,7 +23,86 @@ function useDebounce(value, delay) {
     return debouncedValue;
 }
 
-export default function App() {
+// Memoized error component to prevent unnecessary re-renders
+const ErrorMessage = React.memo(({ error }) => {
+    if (!error.visible) return null;
+    
+    return (
+        <div className="fixed top-16 left-1/2 transform -translate-x-1/2 
+            bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 
+            transition-opacity duration-300">
+            {error.message}
+        </div>
+    );
+});
+
+ErrorMessage.displayName = 'ErrorMessage';
+
+// Memoized input form component
+const InputForm = React.memo(({ 
+    userInput, 
+    setUserInput, 
+    handleSendMessage, 
+    loading, 
+    done, 
+    inputRef 
+}) => {
+    return (
+        <form onSubmit={(e) => {
+            e.preventDefault();
+            handleSendMessage();
+        }} className="flex items-center">
+            <input
+                ref={inputRef}
+                type="text"
+                className={`flex-grow rounded-l px-3 py-2 border border-gray-300
+                    dark:bg-gray-700 dark:border-gray-600 focus:outline-none
+                    transition-opacity duration-200
+                    ${loading || done ? "opacity-50 cursor-not-allowed" : ""}`}
+                placeholder="Type your message..."
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                disabled={loading || done}
+                aria-label="Type your message"
+            />
+            <button
+                type="submit"
+                className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r 
+                    transition-all duration-200
+                    ${loading || done ? "opacity-50 cursor-not-allowed" : ""}`}
+                disabled={loading || done}
+                aria-label="Send message"
+            >
+                Send
+            </button>
+        </form>
+    );
+});
+
+InputForm.displayName = 'InputForm';
+
+// Memoized new chat button component
+const NewChatButton = React.memo(({ handleStartNewChat, done }) => {
+    return (
+        <div className="text-right mt-3">
+            <button
+                onClick={handleStartNewChat}
+                className={`text-sm underline text-gray-600 dark:text-gray-400 
+                    hover:text-gray-800 dark:hover:text-gray-200 
+                    transition-all duration-200
+                    ${!done ? "opacity-0 cursor-not-allowed" : ""}`}
+                disabled={!done}
+                aria-label="Start new chat"
+            >
+                Start New Chat
+            </button>
+        </div>
+    );
+});
+
+NewChatButton.displayName = 'NewChatButton';
+
+const App = React.memo(() => {
     const containerRef = useRef(null);
     const inputRef = useRef(null);
     const pollingRef = useRef(null);
@@ -80,9 +159,21 @@ export default function App() {
             const data = await apiService.getConversationHistory();
             const newConversation = data.messages || [];
             
-            setConversation(prevConversation => 
-                JSON.stringify(prevConversation) !== JSON.stringify(newConversation) ? newConversation : prevConversation
-            );
+            setConversation(prevConversation => {
+                // Use JSON.stringify comparison only when necessary
+                if (prevConversation.length !== newConversation.length) {
+                    return newConversation;
+                }
+                // Deep comparison only for the last message to avoid expensive operations
+                if (newConversation.length > 0 && prevConversation.length > 0) {
+                    const lastPrev = prevConversation[prevConversation.length - 1];
+                    const lastNew = newConversation[newConversation.length - 1];
+                    if (lastPrev.response?.response !== lastNew.response?.response) {
+                        return newConversation;
+                    }
+                }
+                return prevConversation;
+            });
     
             if (newConversation.length > 0) {
                 const lastMsg = newConversation[newConversation.length - 1];
@@ -113,7 +204,11 @@ export default function App() {
     useEffect(() => {
         pollingRef.current = setInterval(fetchConversationHistory, POLL_INTERVAL);
         
-        return () => clearInterval(pollingRef.current);
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+            }
+        };
     }, [fetchConversationHistory]);
     
 
@@ -125,7 +220,9 @@ export default function App() {
             
             scrollTimeoutRef.current = setTimeout(() => {
                 const element = containerRef.current;
-                element.scrollTop = element.scrollHeight;
+                if (element) {
+                    element.scrollTop = element.scrollHeight;
+                }
                 scrollTimeoutRef.current = null;
             }, 100);
         }
@@ -153,7 +250,7 @@ export default function App() {
         };
     }, [loading, done]);
 
-    const handleSendMessage = async () => {
+    const handleSendMessage = useCallback(async () => {
         const trimmedInput = userInput.trim();
         if (!trimmedInput) return;
         
@@ -166,9 +263,9 @@ export default function App() {
             handleError(err, "sending message");
             setLoading(false);
         }
-    };
+    }, [userInput, handleError]);
 
-    const handleConfirm = async () => {
+    const handleConfirm = useCallback(async () => {
         try {
             setLoading(true);
             setError(INITIAL_ERROR_STATE);
@@ -177,9 +274,9 @@ export default function App() {
             handleError(err, "confirming action");
             setLoading(false);
         }
-    };
+    }, [handleError]);
 
-    const handleStartNewChat = async () => {
+    const handleStartNewChat = useCallback(async () => {
         try {
             setError(INITIAL_ERROR_STATE);
             setLoading(true);
@@ -191,31 +288,38 @@ export default function App() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [handleError]);
+
+    // Memoize the chat window props to prevent unnecessary re-renders
+    const chatWindowProps = useMemo(() => ({
+        conversation,
+        loading,
+        onConfirm: handleConfirm,
+        onContentChange: handleContentChange,
+    }), [conversation, loading, handleConfirm, handleContentChange]);
+
+    // Memoize the input form props
+    const inputFormProps = useMemo(() => ({
+        userInput,
+        setUserInput,
+        handleSendMessage,
+        loading,
+        done,
+        inputRef,
+    }), [userInput, handleSendMessage, loading, done]);
 
     return (
         <div className="flex flex-col h-screen">
             <NavBar title="Temporal AI Agent 🤖" />
 
-            {error.visible && (
-                <div className="fixed top-16 left-1/2 transform -translate-x-1/2 
-                    bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 
-                    transition-opacity duration-300">
-                    {error.message}
-                </div>
-            )}
+            <ErrorMessage error={error} />
 
             <div className="flex-grow flex justify-center px-4 py-2 overflow-hidden">
                 <div className="w-full max-w-lg bg-white dark:bg-gray-900 p-8 px-3 rounded shadow-md 
                     flex flex-col overflow-hidden">
                     <div ref={containerRef} 
                         className="flex-grow overflow-y-auto pb-20 pt-10 scroll-smooth">
-                        <ChatWindow
-                            conversation={conversation}
-                            loading={loading}
-                            onConfirm={handleConfirm}
-                            onContentChange={handleContentChange}
-                        />
+                        <ChatWindow {...chatWindowProps} />
                         {done && (
                             <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4 
                                 animate-fade-in">
@@ -231,49 +335,13 @@ export default function App() {
                 border-t border-gray-300 dark:border-gray-700 shadow-lg
                 transition-all duration-200"
                 style={{ zIndex: 10 }}>
-                <form onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage();
-                }} className="flex items-center">
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        className={`flex-grow rounded-l px-3 py-2 border border-gray-300
-                            dark:bg-gray-700 dark:border-gray-600 focus:outline-none
-                            transition-opacity duration-200
-                            ${loading || done ? "opacity-50 cursor-not-allowed" : ""}`}
-                        placeholder="Type your message..."
-                        value={userInput}
-                        onChange={(e) => setUserInput(e.target.value)}
-                        disabled={loading || done}
-                        aria-label="Type your message"
-                    />
-                    <button
-                        type="submit"
-                        className={`bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r 
-                            transition-all duration-200
-                            ${loading || done ? "opacity-50 cursor-not-allowed" : ""}`}
-                        disabled={loading || done}
-                        aria-label="Send message"
-                    >
-                        Send
-                    </button>
-                </form>
-                
-                <div className="text-right mt-3">
-                    <button
-                        onClick={handleStartNewChat}
-                        className={`text-sm underline text-gray-600 dark:text-gray-400 
-                            hover:text-gray-800 dark:hover:text-gray-200 
-                            transition-all duration-200
-                            ${!done ? "opacity-0 cursor-not-allowed" : ""}`}
-                        disabled={!done}
-                        aria-label="Start new chat"
-                    >
-                        Start New Chat
-                    </button>
-                </div>
+                <InputForm {...inputFormProps} />
+                <NewChatButton handleStartNewChat={handleStartNewChat} done={done} />
             </div>
         </div>
     );
-}
+});
+
+App.displayName = 'App';
+
+export default App;
