@@ -3,9 +3,10 @@ import NavBar from "../components/NavBar";
 import ChatWindow from "../components/ChatWindow";
 import { apiService } from "../services/api";
 
-const POLL_INTERVAL = 600; // 0.6 seconds
+const POLL_INTERVAL = 1000; // 1 second - reduced frequency
 const INITIAL_ERROR_STATE = { visible: false, message: '' };
 const DEBOUNCE_DELAY = 300; // 300ms debounce for user input
+const POLL_INTERVAL_ACTIVE = 500; // Faster polling when active
 
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -80,9 +81,22 @@ export default function App() {
             const data = await apiService.getConversationHistory();
             const newConversation = data.messages || [];
             
-            setConversation(prevConversation => 
-                JSON.stringify(prevConversation) !== JSON.stringify(newConversation) ? newConversation : prevConversation
-            );
+            setConversation(prevConversation => {
+                // More efficient comparison - check length and last message first
+                if (prevConversation.length !== newConversation.length) {
+                    return newConversation;
+                }
+                if (newConversation.length === 0) {
+                    return prevConversation;
+                }
+                // Compare last message for quick check
+                const lastPrev = prevConversation[prevConversation.length - 1];
+                const lastNew = newConversation[newConversation.length - 1];
+                if (lastPrev?.response?.response !== lastNew?.response?.response) {
+                    return newConversation;
+                }
+                return prevConversation;
+            });
     
             if (newConversation.length > 0) {
                 const lastMsg = newConversation[newConversation.length - 1];
@@ -109,12 +123,13 @@ export default function App() {
         }
     }, [handleError, clearErrorOnSuccess]);
     
-    // Setup polling with cleanup
+    // Setup polling with cleanup - adaptive polling based on activity
     useEffect(() => {
-        pollingRef.current = setInterval(fetchConversationHistory, POLL_INTERVAL);
+        const interval = loading ? POLL_INTERVAL_ACTIVE : POLL_INTERVAL;
+        pollingRef.current = setInterval(fetchConversationHistory, interval);
         
         return () => clearInterval(pollingRef.current);
-    }, [fetchConversationHistory]);
+    }, [fetchConversationHistory, loading]);
     
 
     const scrollToBottom = useCallback(() => {

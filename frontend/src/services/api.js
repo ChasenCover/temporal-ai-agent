@@ -1,11 +1,30 @@
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
+// Simple cache for API responses
+const cache = new Map();
+const CACHE_DURATION = 1000; // 1 second cache
+
 class ApiError extends Error {
     constructor(message, status) {
         super(message);
         this.status = status;
         this.name = 'ApiError';
     }
+}
+
+function getCachedResponse(key) {
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data;
+    }
+    return null;
+}
+
+function setCachedResponse(key, data) {
+    cache.set(key, {
+        data,
+        timestamp: Date.now()
+    });
 }
 
 async function handleResponse(response) {
@@ -21,9 +40,17 @@ async function handleResponse(response) {
 
 export const apiService = {
     async getConversationHistory() {
+        const cacheKey = 'conversation-history';
+        const cached = getCachedResponse(cacheKey);
+        if (cached) {
+            return cached;
+        }
+
         try {
             const res = await fetch(`${API_BASE_URL}/get-conversation-history`);
-            return handleResponse(res);
+            const data = await handleResponse(res);
+            setCachedResponse(cacheKey, data);
+            return data;
         } catch (error) {
             throw new ApiError(
                 'Failed to fetch conversation history',
