@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+/* Remove external font imports for better performance */
+/* Using system fonts instead of Google Fonts */
 
 @tailwind base;
 @tailwind components;
@@ -17,10 +17,16 @@ html {
 }
 
 body {
-    font-family: Inter, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
     position: relative;
     height: 100%;
     width: 100%;
+    /* Optimize font rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
 
 h1,
@@ -31,10 +37,12 @@ h5,
 h6,
 titles,
 labels {
-    font-family: Poppins, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
 }
 
-/* example if you want it in index.css or a separate .css */
+/* Performance optimizations */
 .corner {
     width: 3em;
     height: 3em;
@@ -50,4 +58,19 @@ labels {
     width: 2em;
     height: 2em;
     object-fit: contain;
+}
+
+/* Add will-change for smooth animations */
+.scroll-smooth {
+    will-change: scroll-position;
+}
+
+/* Optimize transitions */
+.transition-all {
+    will-change: transform, opacity;
+}
+
+/* Reduce paint operations */
+.flex {
+    will-change: transform;
 }
