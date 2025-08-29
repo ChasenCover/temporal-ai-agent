@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from "react";
-import LLMResponse from "./LLMResponse";
+import { LazyLLMResponse } from "./LazyComponents";
 import MessageBubble from "./MessageBubble";
 import LoadingIndicator from "./LoadingIndicator";
 
@@ -48,7 +48,7 @@ const Message = memo(({ msg, idx, isLastMessage, onConfirm, onContentChange }) =
     if (actor === "agent") {
         const data = safeParse(response);
         return (
-            <LLMResponse
+            <LazyLLMResponse
                 data={data}
                 onConfirm={onConfirm}
                 isLastMessage={isLastMessage}
@@ -80,16 +80,20 @@ const ChatWindow = memo(({ conversation, loading, onConfirm, onContentChange }) 
         <ChatErrorBoundary>
             <div className="flex-grow flex flex-col">
                 <div className="flex-grow flex flex-col justify-end overflow-y-auto space-y-3">
-                    {filtered.map((msg, idx) => (
-                        <Message
-                            key={`${msg.actor}-${idx}-${typeof msg.response === 'string' ? msg.response : msg.response?.response}`}
-                            msg={msg}
-                            idx={idx}
-                            isLastMessage={idx === filtered.length - 1}
-                            onConfirm={onConfirm}
-                            onContentChange={onContentChange}
-                        />
-                    ))}
+                    {filtered.map((msg, idx) => {
+                        // More stable key generation
+                        const key = `${msg.actor}-${idx}-${msg.response?.response?.slice(0, 20) || 'empty'}`;
+                        return (
+                            <Message
+                                key={key}
+                                msg={msg}
+                                idx={idx}
+                                isLastMessage={idx === filtered.length - 1}
+                                onConfirm={onConfirm}
+                                onContentChange={onContentChange}
+                            />
+                        );
+                    })}
                     {loading && (
                         <div className="pt-2 flex justify-center">
                             <LoadingIndicator />
