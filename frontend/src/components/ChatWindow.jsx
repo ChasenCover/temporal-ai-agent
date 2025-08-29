@@ -58,6 +58,14 @@ const Message = memo(({ msg, idx, isLastMessage, onConfirm, onContentChange }) =
     }
     
     return null;
+}, (prevProps, nextProps) => {
+    // Custom comparison for better memoization
+    return (
+        prevProps.msg.actor === nextProps.msg.actor &&
+        prevProps.msg.response === nextProps.msg.response &&
+        prevProps.isLastMessage === nextProps.isLastMessage &&
+        prevProps.idx === nextProps.idx
+    );
 });
 
 Message.displayName = 'Message';

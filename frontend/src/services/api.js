@@ -19,11 +19,38 @@ async function handleResponse(response) {
     return response.json();
 }
 
+// Request cache for conversation history to reduce redundant API calls
+let conversationCache = {
+    data: null,
+    timestamp: 0,
+    ttl: 500 // 500ms cache
+};
+
 export const apiService = {
     async getConversationHistory() {
+        // Check cache first to reduce API calls
+        const now = Date.now();
+        if (conversationCache.data && (now - conversationCache.timestamp) < conversationCache.ttl) {
+            return conversationCache.data;
+        }
+
         try {
-            const res = await fetch(`${API_BASE_URL}/get-conversation-history`);
-            return handleResponse(res);
+            const res = await fetch(`${API_BASE_URL}/get-conversation-history`, {
+                // Add cache headers for better performance
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            const data = await handleResponse(res);
+            
+            // Update cache
+            conversationCache = {
+                data,
+                timestamp: now,
+                ttl: 500
+            };
+            
+            return data;
         } catch (error) {
             throw new ApiError(
                 'Failed to fetch conversation history',
